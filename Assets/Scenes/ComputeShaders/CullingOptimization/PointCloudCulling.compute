@@ -1,0 +1,53 @@
+#pragma kernel CullPoints
+
+// Point data structure
+struct PointData
+{
+    float3 position;
+    float size;
+    float4 color;
+    // Add any other attributes you need
+};
+
+// Culling parameters
+float _MaxDistance;
+float _MinSize;
+float3 _CameraPosition;
+float _CameraNearPlane;
+float _CameraFarPlane;
+
+// Buffers
+StructuredBuffer<PointData> _AllPoints;
+AppendStructuredBuffer<uint> _VisiblePoints;
+RWStructuredBuffer<uint> _ArgsBuffer;
+
+[numthreads(64, 1, 1)]
+void CullPoints(uint3 id : SV_DispatchThreadID)
+{
+    uint pointIndex = id.x;
+    uint numPoints;
+    uint stride;
+    _AllPoints.GetDimensions(numPoints, stride);
+    
+    // Skip if this thread is beyond array bounds
+    if (pointIndex >= numPoints) return;
+    
+    // Get point data
+    PointData pointData = _AllPoints[pointIndex];
+    
+    // Simple culling logic (customize as needed)
+    float distanceToCamera = length(pointData.position - _CameraPosition);
+    
+    // Cull points that are too far or too small
+    // You can add more sophisticated culling logic here
+    if (distanceToCamera <= _MaxDistance && pointData.size >= _MinSize &&
+        distanceToCamera >= _CameraNearPlane &&
+        distanceToCamera <= _CameraFarPlane)
+    {
+        // Append the index of visible point
+        _VisiblePoints.Append(pointIndex);
+        
+        // Update the instance count in the args buffer
+        InterlockedAdd(_ArgsBuffer[1], 1);
+    }
+} 
